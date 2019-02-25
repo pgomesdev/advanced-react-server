@@ -7,10 +7,18 @@ const { transport, makeANiceEmail } = require('../mail')
 
 const Mutation = {
   createItem: async (parent, args, context, info) => {
-    // TODO: Check if logged in
+    if (!context.request.userId) {
+      throw new Error('You must be logged in to do that!')
+    }
 
     const item = await context.db.mutation.createItem({
       data: {
+        // This is how we create relationship between the item and the user
+        user: {
+          connect: {
+            id: context.request.userId,
+          },
+        },
         ...args,
       },
     }, info);
