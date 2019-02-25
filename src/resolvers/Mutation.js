@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const { randomBytes } = require('crypto')
+const { promisify } = require('util')
 
 const Mutation = {
   createItem: async (parent, args, context, info) => {
@@ -93,7 +95,65 @@ const Mutation = {
     return {
       message: 'Logout succesfully!'
     }
-  }
+  },
+  requestReset: async (parent, { email }, context, info) => {
+    const user = await context.db.query.user({ where: { email } })
+
+    if (!user) {
+      throw new Error(`NO such user found for email ${email}`)
+    }
+
+    const resetToken = (await promisify(randomBytes)(20)).toString('hex')
+    const resetTokenExpiry = Date.now() + 3600000
+    const res = await context.db.mutation.updateUser({
+      where: { email },
+      data: { resetToken, resetTokenExpiry },
+    })
+
+    // TODO: send an email
+
+    return {
+      message: 'Thanks!'
+    }
+  },
+  resetPassword: async (parent, args, context, info) => {
+    if (args.password !== args.confirmPassword) {
+      throw new Error('Your passwords don\'t match!')
+    }
+
+    const [user] = await context.db.query.users({
+      where: {
+        resetToken: args.resetToken,
+        resetTokenExpiry_gte: Date.now() - 3600000,
+      },
+    })
+
+    if (!user) {
+      throw new Error('This token is either invalid or expired!')
+    }
+
+    const password = await bcrypt.hash(args.password, 10)
+
+    const updatedUser = await context.db.mutation.updateUser({
+      where: {
+        email: user.email,
+      },
+      data: {
+        password,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    }, info)
+
+    const token = jwt.sign({ userId: updatedUser.id }, process.env.APP_SECRET)
+
+    context.response.cookie('token', token, {
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 365, // 1 year cookie
+    })
+
+    return updatedUser
+  },
 };
 
 module.exports = Mutation;
