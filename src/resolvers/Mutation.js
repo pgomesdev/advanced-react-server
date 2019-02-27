@@ -42,11 +42,21 @@ const Mutation = {
     }, info)
   },
   deleteItem: async (parent, args, context, info) => {
+    if (!context.request.userId) {
+      throw new Error('You must be logged in')
+    }
+
     const where = { id: args.id }
 
-    const item = await context.db.query.item({ where }, `{ id title }`)
-    // 2. TODO: check if they own that item, or have the permissions]
-    // 3. delete it
+    const item = await context.db.query.item({ where }, `{ id title user { id } }`)
+    
+    const ownsItem = item.user.id === context.request.userId
+    const hasPermissions = context.request.user.permissions.some(permission => ['ADMIN', 'ITEMDELETE'].includes(permission))
+
+    if (!ownsItem && !hasPermissions) {
+      throw new Error('You don\'t have permission to do that!')
+    }
+
     return context.db.mutation.deleteItem({ where }, info)
   },
   signup: async (parent, args, context, info) => {
