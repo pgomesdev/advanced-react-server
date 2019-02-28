@@ -241,6 +241,33 @@ const Mutation = {
       },
     }, info)
   },
+  removeFromCart: async (parent, args, context, info) => {
+    const { userId } = context.request
+
+    if (!userId) {
+      throw new Error('You must be logged in')
+    }
+
+    const cartItem = await context.db.query.cartItem({
+      where: {
+        id: args.id,
+      },
+    }, `{ id, user { id } }`)
+
+    if (!cartItem) {
+      throw new Error('No cart item found')
+    }
+
+    if (cartItem.user.id !== userId) {
+      throw new Error('Error')
+    }
+
+    return context.db.mutation.deleteCartItem({
+      where: {
+        id: args.id,
+      },
+    }, info)
+  }
 };
 
 module.exports = Mutation;
