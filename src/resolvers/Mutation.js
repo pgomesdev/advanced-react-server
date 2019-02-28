@@ -223,7 +223,6 @@ const Mutation = {
     })
 
     if (existingCartItem) {
-      console.log('In the cart')
       return context.db.mutation.updateCartItem({
         where: { id: existingCartItem.id },
         data: { quantity: existingCartItem.quantity + 1 },
