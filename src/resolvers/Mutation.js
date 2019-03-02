@@ -290,6 +290,7 @@ const Mutation = {
               id
               description
               image
+              largeImage
             }
           }
         }
@@ -308,7 +309,38 @@ const Mutation = {
       source: args.token,
     })
 
-    console.log('charge', charge)
+    const orderItems = user.cart.map(cartItem => {
+      const orderItem = {
+        ...cartItem.item,
+        quantity: cartItem.quantity,
+        user: {
+          connect: { id: userId },
+        },
+      }
+
+      delete orderItem.id
+
+      return orderItem
+    })
+
+    const order = await context.db.mutation.createOrder({
+      data: {
+        total: charge.amount,
+        charge: charge.id,
+        items: { create: orderItems },
+        user: { connect: { id: userId } },
+      },
+    }, info)
+
+    const cartItemIds = user.cart.map(cartItem => cartItem.id)
+
+    await context.db.mutation.deleteManyCartItems({
+      where: {
+        id_in: cartItemIds,
+      },
+    })
+
+    return order
   },
 };
 
