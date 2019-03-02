@@ -27,6 +27,26 @@ const Query = {
 
     return context.db.query.users({}, info)
   },
+  order: async (parent, args, context, info) => {
+    const { userId } = context.request
+
+    if (!userId) {
+      throw new Error('You must be logged in')
+    }
+
+    const order = await context.db.query.order({
+      where: { id: args.id },
+    }, info)
+
+    const ownsOrder = order.user.id === userId
+    const hasPermissionToSeeOrder = context.request.user.permissions.includes('ADMIN')
+
+    if (!ownsOrder && !hasPermissionToSeeOrder) {
+      throw new Error('You can\'t see this')
+    }
+
+    return order
+  },
 };
 
 module.exports = Query;
