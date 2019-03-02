@@ -3,8 +3,8 @@ const jwt = require('jsonwebtoken')
 const { randomBytes } = require('crypto')
 const { promisify } = require('util')
 const { hasPermission } = require('../utils')
-
 const { transport, makeANiceEmail } = require('../mail')
+const stripe = require('../stripe')
 
 const Mutation = {
   createItem: async (parent, args, context, info) => {
@@ -266,7 +266,50 @@ const Mutation = {
         id: args.id,
       },
     }, info)
-  }
+  },
+  createOrder: async (parent, args, context, info) => {
+    const { userId } = context.request
+
+    if (!userId) {
+      throw new Error('You must be logged in')
+    }
+
+    const user = await context.db.query.user(
+      { where: { id: userId } },
+      `
+        {
+          id
+          name
+          email
+          cart {
+            id
+            quantity
+            item {
+              title
+              price
+              id
+              description
+              image
+            }
+          }
+        }
+      `
+    )
+
+    // recalculate the total for the price
+    const amount = user.cart.reduce(
+      (tally, cartItem) => tally + cartItem.item.price * cartItem.quantity,
+      0
+    )
+
+    const charge = await stripe.charges.create({
+      amount,
+      currency: 'USD',
+      source: args.token,
+    })
+
+    console.log('charge', charge)
+  },
 };
 
 module.exports = Mutation;
